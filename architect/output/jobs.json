@@ -1,0 +1,142 @@
+[
+  {
+    "job_id": "job_e34e733b52d1",
+    "session_id": "session_64db1855",
+    "user_id": "anonymous",
+    "raw_task": "summarise this contract and flag risk clauses, need it fast",
+    "task_object": {
+      "goal": "summarise the contract and flag risk clauses",
+      "sub_goals": [
+        "extract_contract_content",
+        "summarise_contract",
+        "identify_risk_clauses"
+      ],
+      "required_capabilities": [
+        "document_extraction",
+        "summarisation",
+        "risk_analysis"
+      ],
+      "constraints": {
+        "priority": "fast",
+        "cost": "any",
+        "accuracy": "high"
+      },
+      "sensitivity": "internal",
+      "is_continuation": false,
+      "ambiguous": false,
+      "ambiguity_note": null,
+      "assumption_notes": "",
+      "cot_reasoning": "Step 1 \u2014 What is the user asking for?\nTwo distinct things: a summary of the contract and the identification of risk clauses. These are separable sub-goals.\n\nStep 2 \u2014 What does this require technically?\nFirst, the contract needs to be extracted/parsed. Then summarisation runs on it. Finally, risk analysis runs on the contract to flag risk clauses. Summarisation and risk analysis can run in parallel \u2014 both only need the parsed contract as input.\n\nStep 3 \u2014 What constraints did the user express?\nThe user wants it \"fast\" \u2014 this implies a high priority and a need for quick turnaround. There is no explicit mention of cost or accuracy, so we will assume a balanced approach.\n\nStep 4 \u2014 Is anything ambiguous?\nNo ambiguity in the task description. The user is clear about the need for a summary and risk clause identification.\n\nStep 5 \u2014 What is the sensitivity level?\nThe task involves a contract, which is typically internal or confidential. Sensitivity = internal.\n\nOUTPUT:"
+    },
+    "steps": [
+      {
+        "step_id": "step_01",
+        "action": "extract contract content",
+        "required_capability": "document_extraction",
+        "depends_on": [],
+        "can_parallel": false,
+        "estimated_risk": "low",
+        "status": "pending",
+        "assigned_agent_id": "agent_doc_extractor"
+      },
+      {
+        "step_id": "step_02",
+        "action": "summarise contract",
+        "required_capability": "summarisation",
+        "depends_on": [
+          "step_01"
+        ],
+        "can_parallel": true,
+        "estimated_risk": "low",
+        "status": "pending",
+        "assigned_agent_id": "agent_summariser"
+      },
+      {
+        "step_id": "step_03",
+        "action": "identify risk clauses",
+        "required_capability": "risk_analysis",
+        "depends_on": [
+          "step_01"
+        ],
+        "can_parallel": true,
+        "estimated_risk": "medium",
+        "status": "pending",
+        "assigned_agent_id": "agent_risk_analyst"
+      }
+    ],
+    "status": "created",
+    "formation": "parallel",
+    "created_at": "2026-03-11T14:00:08.845932+00:00",
+    "updated_at": "2026-03-11T14:00:08.845932+00:00"
+  },
+  {
+    "job_id": "job_e30108836247",
+    "session_id": "session_3ebb9849",
+    "user_id": "anonymous",
+    "raw_task": "summarise this contract and flag risk clauses, need it fast",
+    "task_object": {
+      "goal": "summarise the contract and flag risk clauses",
+      "sub_goals": [
+        "extract_contract_content",
+        "summarise_contract",
+        "flag_risk_clauses"
+      ],
+      "required_capabilities": [
+        "document_extraction",
+        "summarisation",
+        "risk_analysis"
+      ],
+      "constraints": {
+        "priority": "fast",
+        "cost": "any",
+        "accuracy": "high"
+      },
+      "sensitivity": "confidential",
+      "is_continuation": false,
+      "ambiguous": false,
+      "ambiguity_note": null,
+      "assumption_notes": null,
+      "cot_reasoning": "Step 1 \u2014 What is the user asking for?\nTwo distinct things: a summary of the contract and the identification of risk clauses. These are separable sub-goals.\n\nStep 2 \u2014 What does this require technically?\nFirst, the contract document needs to be extracted/parsed. Then summarisation runs on it. Finally, risk analysis runs to flag risk clauses. Summarisation and risk analysis can run in parallel \u2014 both only need step 1's output.\n\nStep 3 \u2014 What constraints did the user express?\nThe user wants it \"fast\" \u2014 this implies a high priority and a need for quick turnaround. No cost constraint mentioned, so default to \"any\" cost.\n\nStep 4 \u2014 Is anything ambiguous?\nNo ambiguity noted. The user is clear about the need for a summary and risk clause identification.\n\nStep 5 \u2014 Sensitivity?\nA contract is typically internal or confidential, as it contains sensitive business information. Sensitivity = confidential.\n\nOUTPUT:"
+    },
+    "steps": [
+      {
+        "step_id": "step_01",
+        "action": "extract contract content",
+        "required_capability": "document_extraction",
+        "depends_on": [],
+        "can_parallel": false,
+        "estimated_risk": "medium",
+        "status": "pending",
+        "assigned_agent_id": "agent_doc_extractor"
+      },
+      {
+        "step_id": "step_02",
+        "action": "summarise contract",
+        "required_capability": "summarisation",
+        "depends_on": [
+          "step_01"
+        ],
+        "can_parallel": true,
+        "estimated_risk": "medium",
+        "status": "pending",
+        "assigned_agent_id": "agent_summariser"
+      },
+      {
+        "step_id": "step_03",
+        "action": "flag risk clauses",
+        "required_capability": "risk_analysis",
+        "depends_on": [
+          "step_01"
+        ],
+        "can_parallel": true,
+        "estimated_risk": "high",
+        "status": "pending",
+        "assigned_agent_id": "agent_risk_analyst"
+      }
+    ],
+    "status": "created",
+    "formation": "parallel",
+    "created_at": "2026-03-11T15:32:04.147445+00:00",
+    "updated_at": "2026-03-11T15:32:04.147445+00:00"
+  }
+]

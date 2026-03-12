@@ -1,0 +1,151 @@
+[
+  {
+    "agent_task_id": "at_5cee615e3dac",
+    "job_id": "job_e34e733b52d1",
+    "step_id": "step_01",
+    "agent_id": "agent_doc_extractor",
+    "agent_name": "Document Extractor",
+    "capability": "document_extraction",
+    "action": "extract contract content",
+    "priority": "fast",
+    "sensitivity": "internal",
+    "depends_on": [],
+    "can_parallel": false,
+    "status": "pending",
+    "created_at": "2026-03-11T14:00:08.845932+00:00",
+    "metadata": {
+      "job_goal": "summarise the contract and flag risk clauses",
+      "estimated_risk": "low",
+      "agent_speed": 5,
+      "agent_cost": 1,
+      "selection_basis": "priority=fast"
+    }
+  },
+  {
+    "agent_task_id": "at_262fc483fb48",
+    "job_id": "job_e34e733b52d1",
+    "step_id": "step_02",
+    "agent_id": "agent_summariser",
+    "agent_name": "Summariser",
+    "capability": "summarisation",
+    "action": "summarise contract",
+    "priority": "fast",
+    "sensitivity": "internal",
+    "depends_on": [
+      "step_01"
+    ],
+    "can_parallel": true,
+    "status": "pending",
+    "created_at": "2026-03-11T14:00:08.855213+00:00",
+    "metadata": {
+      "job_goal": "summarise the contract and flag risk clauses",
+      "estimated_risk": "low",
+      "agent_speed": 4,
+      "agent_cost": 2,
+      "selection_basis": "priority=fast"
+    }
+  },
+  {
+    "agent_task_id": "at_d242595f8e43",
+    "job_id": "job_e34e733b52d1",
+    "step_id": "step_03",
+    "agent_id": "agent_risk_analyst",
+    "agent_name": "Risk Analyst",
+    "capability": "risk_analysis",
+    "action": "identify risk clauses",
+    "priority": "fast",
+    "sensitivity": "internal",
+    "depends_on": [
+      "step_01"
+    ],
+    "can_parallel": true,
+    "status": "pending",
+    "created_at": "2026-03-11T14:00:08.855213+00:00",
+    "metadata": {
+      "job_goal": "summarise the contract and flag risk clauses",
+      "estimated_risk": "medium",
+      "agent_speed": 3,
+      "agent_cost": 3,
+      "selection_basis": "priority=fast"
+    }
+  },
+  {
+    "agent_task_id": "at_0cbc9cdd1b34",
+    "job_id": "job_e30108836247",
+    "step_id": "step_01",
+    "agent_id": "agent_doc_extractor",
+    "agent_name": "Document Extractor",
+    "capability": "document_extraction",
+    "action": "extract contract content",
+    "priority": "fast",
+    "sensitivity": "confidential",
+    "depends_on": [],
+    "can_parallel": false,
+    "status": "pending",
+    "created_at": "2026-03-11T15:32:04.183939+00:00",
+    "metadata": {
+      "job_goal": "summarise the contract and flag risk clauses",
+      "estimated_risk": "medium",
+      "agent_speed": 5,
+      "agent_cost": 1,
+      "agent_accuracy": 0.95,
+      "agent_performance": 0.95,
+      "agent_trust": "verified",
+      "selection_basis": "priority=fast"
+    }
+  },
+  {
+    "agent_task_id": "at_eefba507729e",
+    "job_id": "job_e30108836247",
+    "step_id": "step_02",
+    "agent_id": "agent_summariser",
+    "agent_name": "Summariser",
+    "capability": "summarisation",
+    "action": "summarise contract",
+    "priority": "fast",
+    "sensitivity": "confidential",
+    "depends_on": [
+      "step_01"
+    ],
+    "can_parallel": true,
+    "status": "pending",
+    "created_at": "2026-03-11T15:32:04.183939+00:00",
+    "metadata": {
+      "job_goal": "summarise the contract and flag risk clauses",
+      "estimated_risk": "medium",
+      "agent_speed": 4,
+      "agent_cost": 2,
+      "agent_accuracy": 0.91,
+      "agent_performance": 0.91,
+      "agent_trust": "verified",
+      "selection_basis": "priority=fast"
+    }
+  },
+  {
+    "agent_task_id": "at_8aeae21d8285",
+    "job_id": "job_e30108836247",
+    "step_id": "step_03",
+    "agent_id": "agent_risk_analyst",
+    "agent_name": "Risk Analyst",
+    "capability": "risk_analysis",
+    "action": "flag risk clauses",
+    "priority": "fast",
+    "sensitivity": "confidential",
+    "depends_on": [
+      "step_01"
+    ],
+    "can_parallel": true,
+    "status": "pending",
+    "created_at": "2026-03-11T15:32:04.183939+00:00",
+    "metadata": {
+      "job_goal": "summarise the contract and flag risk clauses",
+      "estimated_risk": "high",
+      "agent_speed": 3,
+      "agent_cost": 3,
+      "agent_accuracy": 0.93,
+      "agent_performance": 0.88,
+      "agent_trust": "verified",
+      "selection_basis": "priority=fast"
+    }
+  }
+]
