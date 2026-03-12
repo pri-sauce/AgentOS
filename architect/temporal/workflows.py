@@ -1,36 +1,25 @@
 """
 temporal/workflows.py -- Temporal Workflow Definition
 
-The JobWorkflow is the durable execution unit for one job.
+Temporal workflows must be deterministic -- they cannot use:
+  - datetime.now()       -> use workflow.now() instead
+  - random               -> not allowed in workflow code
+  - asyncio.sleep        -> use workflow activities instead
 
-What Temporal gives us here:
-  - Each activity (agent task) is checkpointed when complete
-  - If the Python process crashes, Temporal re-runs from last checkpoint
-  - Parallel agent tasks run as concurrent activities natively
-  - Timeouts and retries are defined per activity
-  - The workflow can be paused (e.g. for human approval) and resumed
-
-Workflow structure:
-  1. For sequential steps: run activities one by one in order
-  2. For parallel steps (same depends_on, can_parallel=True): run concurrently
-  3. After all activities complete: notify_completion
+All non-deterministic code lives in activities.py, not here.
 """
 
 import asyncio
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 from temporalio.client import Client
 
-# Import activities via workflow.execute_activity (not direct import)
-# This is the Temporal pattern -- activities are referenced by name
 with workflow.unsafe.imports_passed_through():
     from temporal.activities import execute_agent_task, notify_completion
     from models import Job, AgentTask
 
-
-# ── Retry policy for agent task activities ────────────────────────────────
 
 AGENT_TASK_RETRY = RetryPolicy(
     initial_interval    = timedelta(seconds=2),
@@ -40,36 +29,22 @@ AGENT_TASK_RETRY = RetryPolicy(
 )
 
 
-# ── Workflow ──────────────────────────────────────────────────────────────
-
 @workflow.defn
 class JobWorkflow:
-    """
-    Durable workflow for executing one Architect job.
-    Runs all agent tasks with proper sequencing and parallelism.
-    """
 
     @workflow.run
     async def run(self, payload: dict) -> dict:
-        """
-        payload = {
-          "job":         serialised Job dict,
-          "agent_tasks": list of serialised AgentTask dicts
-        }
-        """
         job_id      = payload["job"]["job_id"]
         agent_tasks = payload["agent_tasks"]
         formation   = payload["job"].get("formation", "sequential")
 
         workflow.logger.info(f"JobWorkflow started | job={job_id} formation={formation}")
 
-        started_at   = datetime.now(timezone.utc).isoformat()
+        # Use workflow.now() -- NOT datetime.now() inside workflow code
+        started_at   = workflow.now().isoformat()
         step_results = []
         agents_used  = []
 
-        # -- Group tasks by their depends_on to determine execution order --
-        # Steps with no dependencies run first
-        # Steps that depend on prior steps run after those complete
         execution_groups = _group_by_dependency(agent_tasks)
 
         for group_index, group in enumerate(execution_groups):
@@ -79,7 +54,6 @@ class JobWorkflow:
             )
 
             if len(group) == 1:
-                # Sequential -- run single activity
                 result = await workflow.execute_activity(
                     execute_agent_task,
                     group[0],
@@ -90,7 +64,6 @@ class JobWorkflow:
                 agents_used.append(group[0].get("agent_id"))
 
             else:
-                # Parallel -- run all activities in this group concurrently
                 tasks = [
                     workflow.execute_activity(
                         execute_agent_task,
@@ -104,10 +77,8 @@ class JobWorkflow:
                 step_results.extend(results)
                 agents_used.extend([t.get("agent_id") for t in group])
 
-        # -- Calculate total time --
         total_time_ms = sum(r.get("duration_ms", 0) for r in step_results)
 
-        # -- Notify completion --
         await workflow.execute_activity(
             notify_completion,
             job_id,
@@ -125,23 +96,16 @@ class JobWorkflow:
             "agents_used":   list(set(agents_used)),
             "total_time_ms": total_time_ms,
             "started_at":    started_at,
-            "completed_at":  datetime.now(timezone.utc).isoformat(),
-            "output":        {
+            "completed_at":  workflow.now().isoformat(),
+            "output": {
                 step["step_id"]: step["output"]
                 for step in step_results
             },
         }
 
 
-# ── Client helper ─────────────────────────────────────────────────────────
-
-async def run_job_workflow(job: Job, agent_tasks: list[AgentTask]) -> dict:
-    """
-    Connects to Temporal server and starts the JobWorkflow.
-    Called from the LangGraph execute node.
-
-    Returns the workflow result dict.
-    """
+async def run_job_workflow(job: Job, agent_tasks: list) -> dict:
+    """Connects to Temporal and runs the JobWorkflow. Called from LangGraph execute node."""
     import os
     temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
 
@@ -155,61 +119,40 @@ async def run_job_workflow(job: Job, agent_tasks: list[AgentTask]) -> dict:
     result = await client.execute_workflow(
         JobWorkflow.run,
         payload,
-        id              = f"job-workflow-{job.job_id}",
-        task_queue      = "architect-task-queue",
+        id                = f"job-workflow-{job.job_id}",
+        task_queue        = "architect-task-queue",
         execution_timeout = timedelta(minutes=30),
     )
 
     return result
 
 
-# ── Dependency grouping helper ────────────────────────────────────────────
-
 def _group_by_dependency(agent_tasks: list[dict]) -> list[list[dict]]:
-    """
-    Groups agent tasks by execution order based on depends_on.
-
-    Returns a list of groups where:
-    - Group 0: tasks with no dependencies (run first)
-    - Group 1: tasks that depend on group 0 (run after group 0)
-    - etc.
-
-    Tasks within the same group run in parallel if can_parallel=True.
-    """
+    """Groups agent tasks by execution order based on depends_on."""
     if not agent_tasks:
         return []
 
-    # Build a map of step_id -> task
-    task_map = {t["step_id"]: t for t in agent_tasks}
-
-    # Topological sort into groups
     completed = set()
     groups    = []
-
     remaining = list(agent_tasks)
 
     while remaining:
-        # Find tasks whose dependencies are all completed
         ready = [
             t for t in remaining
             if all(dep in completed for dep in t.get("depends_on", []))
         ]
 
         if not ready:
-            # Circular dependency or bad data -- just run everything remaining
             groups.append(remaining)
             break
 
-        # Split ready tasks into parallel vs sequential
-        parallel_ready = [t for t in ready if t.get("can_parallel", False)]
+        parallel_ready   = [t for t in ready if t.get("can_parallel", False)]
         sequential_ready = [t for t in ready if not t.get("can_parallel", False)]
 
-        # Sequential tasks each get their own group
         for t in sequential_ready:
             groups.append([t])
             completed.add(t["step_id"])
 
-        # Parallel tasks all go in one group
         if parallel_ready:
             groups.append(parallel_ready)
             for t in parallel_ready:
