@@ -1,12 +1,10 @@
 """
 temporal/workflows.py -- Temporal Workflow Definition
 
-Temporal workflows must be deterministic -- they cannot use:
-  - datetime.now()       -> use workflow.now() instead
-  - random               -> not allowed in workflow code
-  - asyncio.sleep        -> use workflow activities instead
-
-All non-deterministic code lives in activities.py, not here.
+Temporal workflows must be deterministic:
+  - Use workflow.now() not datetime.now()
+  - All activity args must be passed as a single argument (dict or dataclass)
+  - No random, no direct I/O inside workflow code
 """
 
 import asyncio
@@ -40,7 +38,6 @@ class JobWorkflow:
 
         workflow.logger.info(f"JobWorkflow started | job={job_id} formation={formation}")
 
-        # Use workflow.now() -- NOT datetime.now() inside workflow code
         started_at   = workflow.now().isoformat()
         step_results = []
         agents_used  = []
@@ -54,9 +51,10 @@ class JobWorkflow:
             )
 
             if len(group) == 1:
+                # Single task -- run sequentially
                 result = await workflow.execute_activity(
                     execute_agent_task,
-                    group[0],
+                    group[0],                              # single dict arg
                     start_to_close_timeout = timedelta(minutes=5),
                     retry_policy           = AGENT_TASK_RETRY,
                 )
@@ -64,10 +62,11 @@ class JobWorkflow:
                 agents_used.append(group[0].get("agent_id"))
 
             else:
+                # Multiple tasks -- run in parallel
                 tasks = [
                     workflow.execute_activity(
                         execute_agent_task,
-                        task,
+                        task,                             # single dict arg each
                         start_to_close_timeout = timedelta(minutes=5),
                         retry_policy           = AGENT_TASK_RETRY,
                     )
@@ -79,11 +78,14 @@ class JobWorkflow:
 
         total_time_ms = sum(r.get("duration_ms", 0) for r in step_results)
 
+        # notify_completion takes a single dict arg -- not multiple positional args
         await workflow.execute_activity(
             notify_completion,
-            job_id,
-            "complete",
-            f"Job {job_id} completed {len(step_results)} steps",
+            {                                              # pack all args into one dict
+                "job_id":  job_id,
+                "status":  "complete",
+                "summary": f"Job {job_id} completed {len(step_results)} steps",
+            },
             start_to_close_timeout = timedelta(seconds=10),
         )
 
@@ -128,7 +130,7 @@ async def run_job_workflow(job: Job, agent_tasks: list) -> dict:
 
 
 def _group_by_dependency(agent_tasks: list[dict]) -> list[list[dict]]:
-    """Groups agent tasks by execution order based on depends_on."""
+    """Groups agent tasks into execution groups based on depends_on."""
     if not agent_tasks:
         return []
 
