@@ -1,53 +1,54 @@
 """
 graph/state.py -- LangGraph Pipeline State
 
-This is the single state object that flows through every node in the graph.
-Each node reads from it and writes back to it.
-LangGraph passes this state between nodes automatically.
-
-Think of it as the shared memory of one pipeline run.
+v0.4 additions:
+  agent_results  — dict of step_id -> agent output, built as steps complete
+                   used to pass upstream outputs as inputs to downstream steps
+  callback_url   — forwarded from TaskRequest so write_memory can push result back
+  replan_reason  — why execution failed, used by LLM-driven replan node
 """
 
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from typing_extensions import TypedDict
 from models import TaskObject, Job, AgentTask
 
 
 class PipelineState(TypedDict):
-    """
-    Shared state across all LangGraph nodes.
-    Every field starts as None and gets filled as nodes run.
-    """
-
     # -- Input --
-    raw_task:    str
-    session_id:  str
-    user_id:     str
+    raw_task:     str
+    session_id:   str
+    user_id:      str
+    callback_url: Optional[str]
 
     # -- After Task Interpreter --
     task_object: Optional[TaskObject]
 
     # -- After Routing Memory Check --
-    cache_hit:        bool           # True if routing memory had a confident match
-    few_shot_examples: List[dict]    # pulled from routing memory regardless of hit/miss
+    cache_hit:         bool
+    few_shot_examples: List[dict]
 
-    # -- After Plan Generator / Job Creator --
+    # -- After Plan / Job Creator --
     job: Optional[Job]
 
     # -- After Agent Assigner --
     agent_tasks: List[AgentTask]
 
+    # -- Live agent outputs (step_id -> output dict)
+    # Each downstream step gets prior step outputs injected as input_data
+    agent_results: Dict[str, Any]
+
     # -- After Execution (Temporal) --
-    execution_result: Optional[dict]  # temporal workflow result
+    execution_result: Optional[dict]
 
     # -- After Result Aggregator --
     final_result: Optional[dict]
 
     # -- Error / failure state --
-    error:        Optional[str]   # set if any node fails
-    replan_count: int             # how many times we've replanned
+    error:         Optional[str]
+    replan_count:  int
+    replan_reason: Optional[str]
 
     # -- Pipeline control flags --
-    should_clarify:  bool   # True if task was ambiguous -> return early
-    should_replan:   bool   # True if execution failed and replan is needed
-    pipeline_done:   bool   # True when pipeline is complete
+    should_clarify: bool
+    should_replan:  bool
+    pipeline_done:  bool

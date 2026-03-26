@@ -2,10 +2,7 @@
 agent_assigner.py -- Agent Assigner
 
 For each step in a job, picks the best agent from the PostgreSQL registry.
-Selection factors: required capability + priority constraint + performance score.
-
-Phase 1: direct registry query
-Later phases: pgvector semantic shortlist -> LLM final pick with CoT
+v0.4: now passes sensitivity to pick_best_agent() for trust gate enforcement.
 """
 
 import uuid
@@ -19,13 +16,16 @@ from agent_registry import pick_best_agent
 def assign_agents(job: Job) -> List[AgentTask]:
     """
     Produces one AgentTask per step, assigning the best agent from the registry.
+    Trust gate is enforced based on job sensitivity.
     """
     agent_tasks: List[AgentTask] = []
+    sensitivity = job.task_object.sensitivity.value
 
     for step in job.steps:
         agent = pick_best_agent(
-            capability = step.required_capability,
-            priority   = job.task_object.constraints.priority.value,
+            capability  = step.required_capability,
+            priority    = job.task_object.constraints.priority.value,
+            sensitivity = sensitivity,
         )
 
         agent_task = AgentTask(
@@ -50,7 +50,10 @@ def assign_agents(job: Job) -> List[AgentTask]:
                 "agent_accuracy":    agent.get("accuracy_score"),
                 "agent_performance": agent.get("performance_score"),
                 "agent_trust":       agent.get("trust_level"),
-                "selection_basis":   f"priority={job.task_object.constraints.priority.value}",
+                "agent_cert":        agent.get("certification_status"),
+                "endpoint_url":      agent.get("endpoint_url"),
+                "selection_basis":   f"priority={job.task_object.constraints.priority.value} sensitivity={sensitivity}",
+                "input_from_steps":  step.input_from_steps,
             }
         )
 
@@ -59,7 +62,8 @@ def assign_agents(job: Job) -> List[AgentTask]:
 
         print(
             f"[AgentAssigner] {step.step_id} -> {agent['name']} ({agent['agent_id']}) "
-            f"| perf={agent.get('performance_score', 0):.0%} speed={agent.get('speed_score')}"
+            f"| perf={agent.get('performance_score', 0):.0%} trust={agent.get('trust_level')} "
+            f"cert={agent.get('certification_status')}"
         )
 
     return agent_tasks
