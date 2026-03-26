@@ -501,3 +501,119 @@ def _fallback_agent() -> dict:
         "version":              "1.0.0",
         "endpoint_url":         None,
     }
+
+
+# ── Consul-enriched health queries ────────────────────────────────────────
+# These replace get_agent_health() and get_all_health() when Consul is available.
+# Fall back gracefully to PostgreSQL-only health if Consul is down.
+
+def get_agent_health_enriched(agent_id: str) -> Optional[dict]:
+    """
+    Returns health status for a single agent, enriched with Consul data if available.
+    Consul status takes precedence over last_seen-based status when available.
+    """
+    base = get_agent_health(agent_id)
+    if not base:
+        return None
+
+    try:
+        from consul_registry import get_consul_health, consul_available
+        if consul_available():
+            consul_status = get_consul_health(agent_id)
+            if consul_status is not None:
+                # Map Consul status to our HealthStatus enum values
+                consul_map = {
+                    "passing":  "healthy",
+                    "warning":  "degraded",
+                    "critical": "offline",
+                }
+                base["health_status"]   = consul_map.get(consul_status, "unknown")
+                base["consul_status"]   = consul_status
+                base["health_source"]   = "consul"
+            else:
+                base["consul_status"]   = None
+                base["health_source"]   = "heartbeat"
+        else:
+            base["consul_status"]       = None
+            base["health_source"]       = "heartbeat"
+    except Exception as e:
+        print(f"[Registry] Consul health enrichment failed: {e}")
+        base["consul_status"] = None
+        base["health_source"] = "heartbeat"
+
+    return base
+
+
+def get_all_health_enriched() -> list[dict]:
+    """
+    Returns health status for all agents, enriched with Consul data.
+    """
+    base_list = get_all_health()
+
+    try:
+        from consul_registry import get_all_consul_health, consul_available
+        if not consul_available():
+            for h in base_list:
+                h["consul_status"] = None
+                h["health_source"] = "heartbeat"
+            return base_list
+
+        consul_map_raw = get_all_consul_health()
+        consul_status_map = {
+            "passing":  "healthy",
+            "warning":  "degraded",
+            "critical": "offline",
+        }
+
+        for h in base_list:
+            agent_id      = h["agent_id"]
+            consul_status = consul_map_raw.get(agent_id)
+            if consul_status:
+                h["health_status"] = consul_status_map.get(consul_status, "unknown")
+                h["consul_status"] = consul_status
+                h["health_source"] = "consul"
+            else:
+                h["consul_status"] = None
+                h["health_source"] = "heartbeat"
+
+    except Exception as e:
+        print(f"[Registry] Consul health enrichment failed: {e}")
+        for h in base_list:
+            h["consul_status"] = None
+            h["health_source"] = "heartbeat"
+
+    return base_list
+
+
+def register_agent_with_consul(data: dict) -> dict:
+    """
+    Registers agent in PostgreSQL AND Consul.
+    Replaces the plain register_agent() call in main.py for the POST /registry/agents endpoint.
+    """
+    agent = register_agent(data)
+
+    try:
+        from consul_registry import register_agent_consul, consul_available
+        if consul_available():
+            register_agent_consul(dict(agent))
+    except Exception as e:
+        print(f"[Registry] Consul registration warning (non-fatal): {e}")
+
+    return agent
+
+
+def deactivate_agent_with_consul(agent_id: str) -> bool:
+    """
+    Deactivates agent in PostgreSQL AND removes from Consul.
+    """
+    success = deactivate_agent(agent_id)
+
+    if success:
+        try:
+            from consul_registry import deregister_agent_consul, consul_available
+            if consul_available():
+                deregister_agent_consul(agent_id)
+        except Exception as e:
+            print(f"[Registry] Consul deregister warning (non-fatal): {e}")
+
+    return success

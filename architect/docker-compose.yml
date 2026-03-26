@@ -1,5 +1,6 @@
 services:
 
+  # ── Temporal internal PostgreSQL ──────────────────────────────────────────
   postgresql:
     image: postgres:13
     environment:
@@ -8,6 +9,7 @@ services:
     volumes:
       - temporal-postgres:/var/lib/postgresql/data
 
+  # ── Temporal server ───────────────────────────────────────────────────────
   temporal:
     image: temporalio/auto-setup:1.24
     ports:
@@ -21,6 +23,7 @@ services:
     depends_on:
       - postgresql
 
+  # ── Temporal UI ───────────────────────────────────────────────────────────
   temporal-ui:
     image: temporalio/ui:2.26.2
     ports:
@@ -30,5 +33,35 @@ services:
     depends_on:
       - temporal
 
+  # ── Consul ────────────────────────────────────────────────────────────────
+  # Handles active health checking of agent endpoints.
+  # Architect registers agents here; Consul probes them on a schedule.
+  # UI available at http://localhost:8500
+  #
+  # Mode: single-node dev (no clustering needed for Phase 1)
+  consul:
+    image: hashicorp/consul:1.18
+    ports:
+      - "8500:8500"    # HTTP API + UI
+      - "8600:8600/udp" # DNS interface
+    command: >
+      agent
+      -server
+      -bootstrap-expect=1
+      -ui
+      -client=0.0.0.0
+      -advertise=127.0.0.1
+      -data-dir=/consul/data
+    volumes:
+      - consul-data:/consul/data
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   temporal-postgres:
+  consul-data:
